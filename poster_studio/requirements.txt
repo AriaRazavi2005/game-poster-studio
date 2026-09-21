@@ -1,0 +1,10 @@
+# ==============================================================================
+# Game Poster Studio — Dependencies
+# ==============================================================================
+
+# Core Image Processing & Headless Pipeline (Mandatory for Linux & CLI)
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Windows Desktop GUI (Optional / GUI Track only)
+customtkinter>=5.2.0

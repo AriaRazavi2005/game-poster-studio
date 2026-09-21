@@ -1,0 +1,35 @@
+# Python bytecode & caches
+**/__pycache__/**
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Graphify & internal agent scratchpads
+graphify-out/
+.agents/auditor_*
+.agents/challenger_*
+.agents/explorer_*
+.agents/reviewer_*
+.agents/worker_*
+.agents/orchestrator_*
+.agents/sentinel/
+.agents/test_writer_*
+.agents/victory_auditor_*
+.agents/spec_miner_*
+
+# Temporary output images from tests
+*.jpg
+*.png
+!poster_studio/assets/**
+!examples/**
+
+# OS generated
+.DS_Store
+Thumbs.db

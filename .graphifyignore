@@ -1,0 +1,13 @@
+*.md
+*.txt
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.ttf
+*.otf
+.agents/
+.pytest_cache/
+graphify-out/
+sample_outputs_m1/
+docs/
