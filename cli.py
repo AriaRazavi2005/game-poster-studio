@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import sys
 from typing import Any, List, Optional, Set, Union
+from PIL import Image
 
 # Ensure repository root and package are in sys.path dynamically
 REPO_ROOT = Path(__file__).resolve().parent
@@ -112,6 +113,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Path to directory containing images to process in batch mode.",
+    )
+    io_group.add_argument(
+        "--collage",
+        nargs="+",
+        type=str,
+        default=None,
+        help="List of 2 to 4 image paths to generate a multi-image gaming collage.",
     )
 
     # Canvas & Framing Options
@@ -455,6 +463,47 @@ def process_batch(args: argparse.Namespace, config: PosterConfig) -> int:
     return 0
 
 
+def process_collage_mode(args: argparse.Namespace, config: PosterConfig) -> int:
+    """Processes multiple images into a multi-image gaming collage."""
+    from poster_studio.core.collage import create_game_collage
+
+    if not args.output:
+        output_path = Path("collage_output.jpg")
+    else:
+        output_path = Path(args.output)
+        if not output_path.suffix:
+            output_path = output_path.with_suffix(".jpg")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        pil_images = [Image.open(p).convert("RGB") for p in args.collage]
+        res = create_game_collage(
+            images=pil_images,
+            ratio=config.ratio,
+            curve=config.curve,
+            auto_colors=config.auto_colors,
+            color1=config.color1,
+            color2=config.color2,
+            angle=config.angle,
+            watermark=config.watermark,
+            watermark_font=config.watermark_font,
+            watermark_color=config.watermark_color,
+            watermark_stroke_color=config.watermark_stroke_color,
+            watermark_stroke_width=config.watermark_stroke_width
+        )
+        res.save(output_path, format="JPEG", quality=config.quality, subsampling=0)
+        if not args.quiet:
+            print(f"Successfully created collage with {len(pil_images)} images: {output_path}")
+        return 0
+    except Exception as err:
+        sys.stderr.write(f"Error creating collage: {err}\n")
+        if args.verbose:
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+        return 1
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """Main CLI entrypoint function."""
     parser = build_arg_parser()
@@ -465,18 +514,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s", stream=sys.stderr)
 
     # Mutual validation for input targets
-    if not args.input and not args.batch_dir:
-        sys.stderr.write("Error: Either --input or --batch-dir must be specified.\n\n")
+    input_modes = sum(1 for m in [args.input, args.batch_dir, args.collage] if m is not None)
+    if input_modes == 0:
+        sys.stderr.write("Error: One of --input, --batch-dir, or --collage must be specified.\n\n")
         parser.print_usage(file=sys.stderr)
         return 2
 
-    if args.input and args.batch_dir:
-        sys.stderr.write("Error: Cannot specify both --input and --batch-dir.\n")
+    if input_modes > 1:
+        sys.stderr.write("Error: Cannot specify more than one of --input, --batch-dir, or --collage.\n")
         return 2
 
     config = create_poster_config(args)
 
-    if args.input:
+    if args.collage:
+        return process_collage_mode(args, config)
+    elif args.input:
         return process_single_image(args, config)
     else:
         return process_batch(args, config)

@@ -102,6 +102,26 @@ result_img.save(bio, format="JPEG", quality=95)
 bio.seek(0)
 ```
 
+### Multi-Image Gaming Collage API (`create_game_collage`)
+Creates 2x2 or 1x2 floating rounded card collages with dynamic shadows and unified palette extraction:
+```python
+from telegram_bridge import create_game_collage
+
+collage_path = create_game_collage(
+    input_images=["cover1.jpg", "cover2.jpg", "cover3.jpg", "cover4.jpg"],
+    output_image="franchise_collage.jpg",
+    ratio="4:5",                        # 4:5 vertical Telegram standard
+    gap=18,                             # Space between cards in px
+    curve=28,                           # Rounded corner radius
+    auto_colors=True,                   # Extract unified palette across all 4 images
+    watermark="BAZYEPC",                # Branding watermark
+    watermark_font="bebas_neue",
+    watermark_color="#F5BA42",
+    watermark_stroke_color="#0B131F",
+    pans_y=[0, -30, -120, -15]          # Optional tailored per-image vertical crop offsets
+)
+```
+
 ---
 
 ## 💻 CLI Usage & Recipes (`cli.py`)
@@ -111,7 +131,18 @@ bio.seek(0)
 python cli.py --input poster.jpg --output framed_poster.jpg --ratio 4:5
 ```
 
-### 2. High-Impact Custom Colors & Font (e.g., EA SPORTS FC / Gold & Navy)
+### 2. Multi-Image Gaming Collage (2 to 4 Posters)
+```bash
+python cli.py --collage asylum.jpg city.jpg origins.jpg knight.jpg \
+  --output batman_quadrilogy_collage.jpg \
+  --ratio 4:5 \
+  --curve 28 \
+  --watermark "BAZYEPC" \
+  --font bebas_neue \
+  --watermark-color "#F5BA42"
+```
+
+### 3. High-Impact Custom Colors & Font (e.g., EA SPORTS FC / Gold & Navy)
 ```bash
 python cli.py --input fc26.jpg --output fc26_framed.jpg \
   --ratio 4:5 \
