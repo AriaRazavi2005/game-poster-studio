@@ -24,6 +24,7 @@ from dataclasses import asdict
 import json
 from poster_studio.core.processor import PosterConfig
 from poster_studio.core.presets import PRESETS, get_preset, auto_select_preset
+from poster_studio.core.collage import COLLAGE_TEMPLATES, create_game_collage as render_collage
 from poster_studio.core.geometry import ASPECT_RATIOS, resolve_canvas_size
 from poster_studio.core.palette import (
     DEFAULT_FALLBACK_C1,
@@ -630,23 +631,56 @@ class MainWindow:
                 header,
                 text="📂 Open Image",
                 command=self._on_open_image_clicked,
-                width=110,
+                width=105,
                 height=32,
                 fg_color="#27272a",
                 hover_color="#3f3f46"
             )
-            self.btn_open.pack(side="left", padx=8, pady=8)
+            self.btn_open.pack(side="left", padx=4, pady=8)
+
+            self.btn_open_collage = ctk.CTkButton(
+                header,
+                text="🧩 Open Collage (2-9)",
+                command=self._on_open_collage_clicked,
+                width=140,
+                height=32,
+                fg_color="#7c3aed",
+                hover_color="#6d28d9"
+            )
+            self.btn_open_collage.pack(side="left", padx=4, pady=8)
+
+            self.btn_undo = ctk.CTkButton(
+                header,
+                text="↶ Undo",
+                command=self._on_undo_clicked,
+                width=64,
+                height=32,
+                fg_color="#27272a",
+                hover_color="#3f3f46"
+            )
+            self.btn_undo.pack(side="left", padx=2, pady=8)
+
+            self.btn_redo = ctk.CTkButton(
+                header,
+                text="↷ Redo",
+                command=self._on_redo_clicked,
+                width=64,
+                height=32,
+                fg_color="#27272a",
+                hover_color="#3f3f46"
+            )
+            self.btn_redo.pack(side="left", padx=2, pady=8)
 
             self.btn_reset = ctk.CTkButton(
                 header,
                 text="↺ Reset",
                 command=self._on_reset_clicked,
-                width=80,
+                width=70,
                 height=32,
                 fg_color="#27272a",
                 hover_color="#3f3f46"
             )
-            self.btn_reset.pack(side="left", padx=8, pady=8)
+            self.btn_reset.pack(side="left", padx=4, pady=8)
 
             # Export actions
             self.btn_export = ctk.CTkButton(
@@ -660,6 +694,18 @@ class MainWindow:
                 font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold")
             )
             self.btn_export.pack(side="right", padx=(4, 16), pady=8)
+
+            self.btn_multi_export = ctk.CTkButton(
+                header,
+                text="📦 All Ratios",
+                command=self._on_multi_export_clicked,
+                width=95,
+                height=32,
+                fg_color="#d97706",
+                hover_color="#b45309",
+                font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold")
+            )
+            self.btn_multi_export.pack(side="right", padx=4, pady=8)
 
             self.btn_copy = ctk.CTkButton(
                 header,
@@ -702,14 +748,35 @@ class MainWindow:
                 text="📂 Open Image",
                 command=self._on_open_image_clicked
             )
-            self.btn_open.pack(side="left", padx=8, pady=8)
+            self.btn_open.pack(side="left", padx=4, pady=8)
+
+            self.btn_open_collage = self.ttk.Button(
+                header,
+                text="🧩 Open Collage",
+                command=self._on_open_collage_clicked
+            )
+            self.btn_open_collage.pack(side="left", padx=4, pady=8)
+
+            self.btn_undo = self.ttk.Button(
+                header,
+                text="↶ Undo",
+                command=self._on_undo_clicked
+            )
+            self.btn_undo.pack(side="left", padx=2, pady=8)
+
+            self.btn_redo = self.ttk.Button(
+                header,
+                text="↷ Redo",
+                command=self._on_redo_clicked
+            )
+            self.btn_redo.pack(side="left", padx=2, pady=8)
 
             self.btn_reset = self.ttk.Button(
                 header,
                 text="↺ Reset",
                 command=self._on_reset_clicked
             )
-            self.btn_reset.pack(side="left", padx=8, pady=8)
+            self.btn_reset.pack(side="left", padx=4, pady=8)
 
             self.btn_export = self.ttk.Button(
                 header,
@@ -718,6 +785,13 @@ class MainWindow:
                 style="Primary.TButton"
             )
             self.btn_export.pack(side="right", padx=(4, 16), pady=8)
+
+            self.btn_multi_export = self.ttk.Button(
+                header,
+                text="📦 All Ratios",
+                command=self._on_multi_export_clicked
+            )
+            self.btn_multi_export.pack(side="right", padx=4, pady=8)
 
             self.btn_copy = self.ttk.Button(
                 header,
@@ -781,8 +855,34 @@ class MainWindow:
 
     # --- Framing Tab ---
     def _populate_framing_tab_ctk(self, parent: Any) -> None:
-        lbl_h = ctk.CTkLabel(parent, text="POSTER FRAMING", font=ctk.CTkFont(size=12, weight="bold"), text_color="#a1a1aa")
-        lbl_h.pack(anchor="w", padx=12, pady=(12, 6))
+        lbl_h = ctk.CTkLabel(parent, text="PRESET & COLLAGE", font=ctk.CTkFont(size=12, weight="bold"), text_color="#a1a1aa")
+        lbl_h.pack(anchor="w", padx=12, pady=(8, 2))
+
+        preset_row = ctk.CTkFrame(parent, fg_color="transparent")
+        preset_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(preset_row, text="Genre Preset:", width=90, anchor="w").pack(side="left")
+        preset_vals = ["none", "auto"] + list(PRESETS.keys())
+        self.combo_preset = ctk.CTkOptionMenu(
+            preset_row, values=preset_vals, command=self._on_preset_selected, height=26
+        )
+        self.combo_preset.pack(side="left", fill="x", expand=True)
+        self.combo_preset.set("none")
+
+        tpl_row = ctk.CTkFrame(parent, fg_color="transparent")
+        tpl_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(tpl_row, text="Collage Layout:", width=90, anchor="w").pack(side="left")
+        tpl_vals = ["auto"] + list(COLLAGE_TEMPLATES.keys())
+        self.combo_template = ctk.CTkOptionMenu(
+            tpl_row, values=tpl_vals, command=self._on_template_selected, height=26, width=130
+        )
+        self.combo_template.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.combo_template.set("auto")
+
+        self.combo_fit = ctk.CTkOptionMenu(
+            tpl_row, values=["smart", "cover", "contain"], command=self._on_fit_selected, height=26, width=75
+        )
+        self.combo_fit.pack(side="left")
+        self.combo_fit.set("smart")
 
         # Spacing
         self.lbl_spacing_val = ctk.CTkLabel(parent, text="Spacing (Margin): 50 px", text_color="#f4f4f5")
@@ -791,44 +891,66 @@ class MainWindow:
             parent, from_=0, to=150, number_of_steps=150,
             command=self._on_spacing_slider
         )
-        self.slider_spacing.pack(fill="x", padx=12, pady=(2, 12))
+        self.slider_spacing.pack(fill="x", padx=12, pady=(2, 8))
 
         # Curve
         self.lbl_curve_val = ctk.CTkLabel(parent, text="Corner Curve: 45 px", text_color="#f4f4f5")
-        self.lbl_curve_val.pack(anchor="w", padx=12, pady=(6, 0))
+        self.lbl_curve_val.pack(anchor="w", padx=12, pady=(4, 0))
         self.slider_curve = ctk.CTkSlider(
             parent, from_=0, to=120, number_of_steps=120,
             command=self._on_curve_slider
         )
-        self.slider_curve.pack(fill="x", padx=12, pady=(2, 12))
+        self.slider_curve.pack(fill="x", padx=12, pady=(2, 8))
 
         # Zoom
         self.lbl_zoom_val = ctk.CTkLabel(parent, text="Poster Zoom: 1.00x", text_color="#f4f4f5")
-        self.lbl_zoom_val.pack(anchor="w", padx=12, pady=(6, 0))
+        self.lbl_zoom_val.pack(anchor="w", padx=12, pady=(4, 0))
         self.slider_zoom = ctk.CTkSlider(
             parent, from_=0.5, to=3.0, number_of_steps=250,
             command=self._on_zoom_slider
         )
-        self.slider_zoom.pack(fill="x", padx=12, pady=(2, 10))
+        self.slider_zoom.pack(fill="x", padx=12, pady=(2, 6))
 
         # Pan Offset & Reset
         self.lbl_pan_val = ctk.CTkLabel(parent, text="Poster Pan: (0, 0) px", text_color="#93c5fd")
-        self.lbl_pan_val.pack(anchor="w", padx=12, pady=(4, 0))
+        self.lbl_pan_val.pack(anchor="w", padx=12, pady=(2, 0))
         self.btn_reset_pan = ctk.CTkButton(
             parent, text="🔄 Reset Pan & Zoom", command=self._on_reset_pan_clicked,
-            height=28, fg_color="#27272a", hover_color="#3f3f46"
+            height=26, fg_color="#27272a", hover_color="#3f3f46"
         )
-        self.btn_reset_pan.pack(fill="x", padx=12, pady=(4, 6))
+        self.btn_reset_pan.pack(fill="x", padx=12, pady=(2, 6))
+
+        self.chk_autotrim = ctk.CTkCheckBox(
+            parent, text="Auto-Trim Black/White Borders", command=self._on_autotrim_toggled
+        )
+        self.chk_autotrim.pack(anchor="w", padx=12, pady=3)
+
+        self.chk_popout = ctk.CTkCheckBox(
+            parent, text="3D Character Pop-Out (Pro AI)", command=self._on_popout_toggled
+        )
+        self.chk_popout.pack(anchor="w", padx=12, pady=3)
 
         ctk.CTkLabel(
             parent,
-            text="💡 Mouse: Scroll wheel to zoom, drag poster to pan freely.",
+            text="💡 Scroll wheel to zoom, drag poster/text on canvas.",
             font=ctk.CTkFont(size=10), text_color="#71717a", wraplength=320, justify="left"
-        ).pack(anchor="w", padx=12, pady=(2, 10))
+        ).pack(anchor="w", padx=12, pady=(4, 6))
 
     def _populate_framing_tab_ttk(self, parent: Any) -> None:
-        lbl_h = self.ttk.Label(parent, text="POSTER FRAMING", style="Subheader.TLabel")
-        lbl_h.pack(anchor="w", padx=12, pady=(12, 6))
+        lbl_h = self.ttk.Label(parent, text="PRESET & COLLAGE", style="Subheader.TLabel")
+        lbl_h.pack(anchor="w", padx=12, pady=(8, 4))
+
+        preset_vals = ["none", "auto"] + list(PRESETS.keys())
+        self.combo_preset = self.ttk.Combobox(parent, values=preset_vals, state="readonly")
+        self.combo_preset.pack(fill="x", padx=12, pady=2)
+        self.combo_preset.set("none")
+        self.combo_preset.bind("<<ComboboxSelected>>", lambda e: self._on_preset_selected(self.combo_preset.get()))
+
+        tpl_vals = ["auto"] + list(COLLAGE_TEMPLATES.keys())
+        self.combo_template = self.ttk.Combobox(parent, values=tpl_vals, state="readonly")
+        self.combo_template.pack(fill="x", padx=12, pady=2)
+        self.combo_template.set("auto")
+        self.combo_template.bind("<<ComboboxSelected>>", lambda e: self._on_template_selected(self.combo_template.get()))
 
         self.lbl_spacing_val = self.ttk.Label(parent, text="Spacing (Margin): 50 px", style="Card.TLabel")
         self.lbl_spacing_val.pack(anchor="w", padx=12, pady=(6, 0))
@@ -836,36 +958,42 @@ class MainWindow:
             parent, from_=0, to=150,
             command=lambda v: self._on_spacing_slider(float(v))
         )
-        self.slider_spacing.pack(fill="x", padx=12, pady=(2, 12))
+        self.slider_spacing.pack(fill="x", padx=12, pady=(2, 8))
 
         self.lbl_curve_val = self.ttk.Label(parent, text="Corner Curve: 45 px", style="Card.TLabel")
-        self.lbl_curve_val.pack(anchor="w", padx=12, pady=(6, 0))
+        self.lbl_curve_val.pack(anchor="w", padx=12, pady=(4, 0))
         self.slider_curve = self.ttk.Scale(
             parent, from_=0, to=120,
             command=lambda v: self._on_curve_slider(float(v))
         )
-        self.slider_curve.pack(fill="x", padx=12, pady=(2, 12))
+        self.slider_curve.pack(fill="x", padx=12, pady=(2, 8))
 
         self.lbl_zoom_val = self.ttk.Label(parent, text="Poster Zoom: 1.00x", style="Card.TLabel")
-        self.lbl_zoom_val.pack(anchor="w", padx=12, pady=(6, 0))
+        self.lbl_zoom_val.pack(anchor="w", padx=12, pady=(4, 0))
         self.slider_zoom = self.ttk.Scale(
             parent, from_=0.5, to=3.0,
             command=lambda v: self._on_zoom_slider(float(v))
         )
-        self.slider_zoom.pack(fill="x", padx=12, pady=(2, 10))
+        self.slider_zoom.pack(fill="x", padx=12, pady=(2, 6))
 
         self.lbl_pan_val = self.ttk.Label(parent, text="Poster Pan: (0, 0) px", style="Card.TLabel")
-        self.lbl_pan_val.pack(anchor="w", padx=12, pady=(4, 0))
+        self.lbl_pan_val.pack(anchor="w", padx=12, pady=(2, 0))
         self.btn_reset_pan = self.ttk.Button(
             parent, text="🔄 Reset Pan & Zoom", command=self._on_reset_pan_clicked
         )
-        self.btn_reset_pan.pack(fill="x", padx=12, pady=(4, 6))
+        self.btn_reset_pan.pack(fill="x", padx=12, pady=(2, 6))
 
-        self.ttk.Label(
-            parent,
-            text="💡 Mouse: Scroll wheel to zoom, drag poster to pan freely.",
-            font=("Segoe UI", 8), foreground="#71717a"
-        ).pack(anchor="w", padx=12, pady=(2, 10))
+        self.autotrim_var = self.tk.BooleanVar(value=False)
+        self.chk_autotrim = self.ttk.Checkbutton(
+            parent, text="Auto-Trim Borders", variable=self.autotrim_var, command=self._on_autotrim_toggled
+        )
+        self.chk_autotrim.pack(anchor="w", padx=12, pady=2)
+
+        self.popout_var = self.tk.BooleanVar(value=False)
+        self.chk_popout = self.ttk.Checkbutton(
+            parent, text="3D Character Pop-Out (AI)", variable=self.popout_var, command=self._on_popout_toggled
+        )
+        self.chk_popout.pack(anchor="w", padx=12, pady=2)
 
     # --- Aspect Ratio Tab ---
     def _populate_ratio_tab_ctk(self, parent: Any) -> None:
@@ -927,71 +1055,122 @@ class MainWindow:
 
     # --- Background Tab ---
     def _populate_background_tab_ctk(self, parent: Any) -> None:
-        lbl_h = ctk.CTkLabel(parent, text="GRADIENT BACKDROP", font=ctk.CTkFont(size=12, weight="bold"), text_color="#a1a1aa")
-        lbl_h.pack(anchor="w", padx=12, pady=(12, 6))
+        lbl_h = ctk.CTkLabel(parent, text="BACKDROP & VISUAL FX", font=ctk.CTkFont(size=12, weight="bold"), text_color="#a1a1aa")
+        lbl_h.pack(anchor="w", padx=12, pady=(8, 4))
+
+        mode_row = ctk.CTkFrame(parent, fg_color="transparent")
+        mode_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(mode_row, text="Backdrop:", width=65, anchor="w").pack(side="left")
+        self.combo_bgmode = ctk.CTkOptionMenu(
+            mode_row, values=["gradient", "blur", "radial", "mesh"],
+            command=self._on_bgmode_selected, height=26, width=105
+        )
+        self.combo_bgmode.pack(side="left", padx=(0, 6))
+        self.combo_bgmode.set("gradient")
+
+        self.combo_pattern = ctk.CTkOptionMenu(
+            mode_row, values=["none", "dots", "scanlines", "diagonal", "hex"],
+            command=self._on_pattern_selected, height=26, width=105
+        )
+        self.combo_pattern.pack(side="left")
+        self.combo_pattern.set("none")
 
         # Color 1 row
         row1 = ctk.CTkFrame(parent, fg_color="transparent")
-        row1.pack(fill="x", padx=12, pady=4)
+        row1.pack(fill="x", padx=12, pady=3)
         ctk.CTkLabel(row1, text="Color 1:", width=60).pack(side="left")
         self.btn_color1_swatch = ctk.CTkButton(
-            row1, text="", width=28, height=28, fg_color="#1e1b4b",
+            row1, text="", width=26, height=26, fg_color="#1e1b4b",
             hover_color="#1e1b4b", command=lambda: self._on_pick_color(1)
         )
         self.btn_color1_swatch.pack(side="left", padx=6)
-        self.entry_color1 = ctk.CTkEntry(row1, width=100)
+        self.entry_color1 = ctk.CTkEntry(row1, width=100, height=26)
         self.entry_color1.pack(side="left", padx=6)
         self.entry_color1.insert(0, "#1e1b4b")
         self.entry_color1.bind("<Return>", lambda e: self._on_hex_entry_changed(1))
 
         # Color 2 row
         row2 = ctk.CTkFrame(parent, fg_color="transparent")
-        row2.pack(fill="x", padx=12, pady=4)
+        row2.pack(fill="x", padx=12, pady=3)
         ctk.CTkLabel(row2, text="Color 2:", width=60).pack(side="left")
         self.btn_color2_swatch = ctk.CTkButton(
-            row2, text="", width=28, height=28, fg_color="#0284c7",
+            row2, text="", width=26, height=26, fg_color="#0284c7",
             hover_color="#0284c7", command=lambda: self._on_pick_color(2)
         )
         self.btn_color2_swatch.pack(side="left", padx=6)
-        self.entry_color2 = ctk.CTkEntry(row2, width=100)
+        self.entry_color2 = ctk.CTkEntry(row2, width=100, height=26)
         self.entry_color2.pack(side="left", padx=6)
         self.entry_color2.insert(0, "#0284c7")
         self.entry_color2.bind("<Return>", lambda e: self._on_hex_entry_changed(2))
 
         # Action buttons
         btn_row = ctk.CTkFrame(parent, fg_color="transparent")
-        btn_row.pack(fill="x", padx=12, pady=8)
+        btn_row.pack(fill="x", padx=12, pady=4)
         self.btn_autodetect = ctk.CTkButton(
-            btn_row, text="⚡ Auto-Detect", width=110, height=28,
+            btn_row, text="⚡ Auto-Detect", width=110, height=26,
             command=self._on_autodetect_clicked
         )
         self.btn_autodetect.pack(side="left", padx=(0, 6))
         self.btn_swap = ctk.CTkButton(
-            btn_row, text="⇄ Swap", width=80, height=28,
+            btn_row, text="⇄ Swap", width=80, height=26,
             command=self._on_swap_clicked
         )
         self.btn_swap.pack(side="left")
 
         # Angle slider (0-360)
         self.lbl_angle_val = ctk.CTkLabel(parent, text="Gradient Angle: 135°", text_color="#f4f4f5")
-        self.lbl_angle_val.pack(anchor="w", padx=12, pady=(8, 0))
+        self.lbl_angle_val.pack(anchor="w", padx=12, pady=(4, 0))
         self.slider_angle = ctk.CTkSlider(
             parent, from_=0, to=360, number_of_steps=360,
             command=self._on_angle_slider
         )
-        self.slider_angle.pack(fill="x", padx=12, pady=(2, 12))
+        self.slider_angle.pack(fill="x", padx=12, pady=(2, 6))
 
-        # Drop Shadow
+        # Drop Shadow & Effects
         self.chk_shadow = ctk.CTkCheckBox(
             parent, text="Enable 3D Drop Shadow",
             command=self._on_shadow_toggled
         )
-        self.chk_shadow.pack(anchor="w", padx=12, pady=6)
+        self.chk_shadow.pack(anchor="w", padx=12, pady=3)
         self.chk_shadow.select()
 
+        self.chk_glow = ctk.CTkCheckBox(
+            parent, text="Neon Outer Glow",
+            command=self._on_fx_toggled
+        )
+        self.chk_glow.pack(anchor="w", padx=12, pady=3)
+
+        self.chk_reflection = ctk.CTkCheckBox(
+            parent, text="3D Mirror Floor Reflection",
+            command=self._on_fx_toggled
+        )
+        self.chk_reflection.pack(anchor="w", padx=12, pady=3)
+
+        self.chk_border = ctk.CTkCheckBox(
+            parent, text="Card Accent Border (3px)",
+            command=self._on_fx_toggled
+        )
+        self.chk_border.pack(anchor="w", padx=12, pady=3)
+
+        self.chk_vignette = ctk.CTkCheckBox(
+            parent, text="Cinematic Vignette & Film Grain",
+            command=self._on_fx_toggled
+        )
+        self.chk_vignette.pack(anchor="w", padx=12, pady=3)
+
     def _populate_background_tab_ttk(self, parent: Any) -> None:
-        lbl_h = self.ttk.Label(parent, text="GRADIENT BACKDROP", style="Subheader.TLabel")
-        lbl_h.pack(anchor="w", padx=12, pady=(12, 6))
+        lbl_h = self.ttk.Label(parent, text="BACKDROP & VISUAL FX", style="Subheader.TLabel")
+        lbl_h.pack(anchor="w", padx=12, pady=(8, 4))
+
+        self.combo_bgmode = self.ttk.Combobox(parent, values=["gradient", "blur", "radial", "mesh"], state="readonly")
+        self.combo_bgmode.pack(fill="x", padx=12, pady=2)
+        self.combo_bgmode.set("gradient")
+        self.combo_bgmode.bind("<<ComboboxSelected>>", lambda e: self._on_bgmode_selected(self.combo_bgmode.get()))
+
+        self.combo_pattern = self.ttk.Combobox(parent, values=["none", "dots", "scanlines", "diagonal", "hex"], state="readonly")
+        self.combo_pattern.pack(fill="x", padx=12, pady=2)
+        self.combo_pattern.set("none")
+        self.combo_pattern.bind("<<ComboboxSelected>>", lambda e: self._on_pattern_selected(self.combo_pattern.get()))
 
         row1 = self.ttk.Frame(parent, style="Card.TFrame")
         row1.pack(fill="x", padx=12, pady=4)
@@ -1020,7 +1199,7 @@ class MainWindow:
         self.entry_color2.bind("<Return>", lambda e: self._on_hex_entry_changed(2))
 
         btn_row = self.ttk.Frame(parent, style="Card.TFrame")
-        btn_row.pack(fill="x", padx=12, pady=8)
+        btn_row.pack(fill="x", padx=12, pady=4)
         self.btn_autodetect = self.ttk.Button(
             btn_row, text="⚡ Auto-Detect", command=self._on_autodetect_clicked
         )
@@ -1031,41 +1210,68 @@ class MainWindow:
         self.btn_swap.pack(side="left")
 
         self.lbl_angle_val = self.ttk.Label(parent, text="Gradient Angle: 135°", style="Card.TLabel")
-        self.lbl_angle_val.pack(anchor="w", padx=12, pady=(8, 0))
+        self.lbl_angle_val.pack(anchor="w", padx=12, pady=(4, 0))
         self.slider_angle = self.ttk.Scale(
             parent, from_=0, to=360,
             command=lambda v: self._on_angle_slider(float(v))
         )
-        self.slider_angle.pack(fill="x", padx=12, pady=(2, 12))
+        self.slider_angle.pack(fill="x", padx=12, pady=(2, 8))
 
         self.shadow_var = self.tk.BooleanVar(value=True)
         self.chk_shadow = self.ttk.Checkbutton(
             parent, text="Enable 3D Drop Shadow", variable=self.shadow_var,
             command=self._on_shadow_toggled
         )
-        self.chk_shadow.pack(anchor="w", padx=12, pady=6)
+        self.chk_shadow.pack(anchor="w", padx=12, pady=2)
 
     # --- Branding Tab ---
     def _populate_branding_tab_ctk(self, parent: Any) -> None:
-        lbl_h = ctk.CTkLabel(parent, text="BRANDING & WATERMARK", font=ctk.CTkFont(size=12, weight="bold"), text_color="#a1a1aa")
-        lbl_h.pack(anchor="w", padx=12, pady=(10, 4))
+        lbl_h = ctk.CTkLabel(parent, text="BRANDING, RTL & OVERLAYS", font=ctk.CTkFont(size=12, weight="bold"), text_color="#a1a1aa")
+        lbl_h.pack(anchor="w", padx=12, pady=(6, 2))
 
         # Watermark text input
-        ctk.CTkLabel(parent, text="Watermark Text:").pack(anchor="w", padx=12, pady=(2, 0))
-        self.entry_watermark = ctk.CTkEntry(parent)
-        self.entry_watermark.pack(fill="x", padx=12, pady=(2, 8))
+        wm_row = ctk.CTkFrame(parent, fg_color="transparent")
+        wm_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(wm_row, text="Watermark:", width=75, anchor="w").pack(side="left")
+        self.entry_watermark = ctk.CTkEntry(wm_row, height=26)
+        self.entry_watermark.pack(side="left", fill="x", expand=True)
         self.entry_watermark.insert(0, "BAZYEPC")
         self.entry_watermark.bind("<KeyRelease>", self._on_watermark_text_changed)
 
+        # Multi-layer Title / Subtitle / Badge / Platforms
+        t_row = ctk.CTkFrame(parent, fg_color="transparent")
+        t_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(t_row, text="Game Title:", width=75, anchor="w").pack(side="left")
+        self.entry_title = ctk.CTkEntry(t_row, height=26, placeholder_text="e.g. گوست آو سوشیما")
+        self.entry_title.pack(side="left", fill="x", expand=True)
+        self.entry_title.bind("<KeyRelease>", self._on_typography_changed)
+
+        sub_row = ctk.CTkFrame(parent, fg_color="transparent")
+        sub_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(sub_row, text="Subtitle:", width=75, anchor="w").pack(side="left")
+        self.entry_subtitle = ctk.CTkEntry(sub_row, height=26, placeholder_text="e.g. نسخه کارگردان")
+        self.entry_subtitle.pack(side="left", fill="x", expand=True)
+        self.entry_subtitle.bind("<KeyRelease>", self._on_typography_changed)
+
+        bdg_row = ctk.CTkFrame(parent, fg_color="transparent")
+        bdg_row.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(bdg_row, text="Badge/Plat:", width=75, anchor="w").pack(side="left")
+        self.entry_badge = ctk.CTkEntry(bdg_row, height=26, width=115, placeholder_text="زیرنویس فارسی")
+        self.entry_badge.pack(side="left", padx=(0, 4))
+        self.entry_badge.bind("<KeyRelease>", self._on_typography_changed)
+        self.entry_platforms = ctk.CTkEntry(bdg_row, height=26, placeholder_text="PC,PS5,STEAM")
+        self.entry_platforms.pack(side="left", fill="x", expand=True)
+        self.entry_platforms.bind("<KeyRelease>", self._on_typography_changed)
+
         # Gaming font combobox
-        ctk.CTkLabel(parent, text="Gaming Font:").pack(anchor="w", padx=12, pady=(2, 0))
+        ctk.CTkLabel(parent, text="Gaming / Persian Font:").pack(anchor="w", padx=12, pady=(2, 0))
         self.combo_font = ctk.CTkComboBox(
             parent,
             values=list(AVAILABLE_FONTS.keys()),
             command=self._on_font_selected,
-            height=28
+            height=26
         )
-        self.combo_font.pack(fill="x", padx=12, pady=(2, 8))
+        self.combo_font.pack(fill="x", padx=12, pady=(2, 4))
         self.combo_font.set("Anton (Default Gaming)")
 
         # Font Size
@@ -1075,7 +1281,7 @@ class MainWindow:
             parent, from_=12, to=90, number_of_steps=78,
             command=self._on_watermark_size_slider
         )
-        self.slider_watermark_size.pack(fill="x", padx=12, pady=(2, 8))
+        self.slider_watermark_size.pack(fill="x", padx=12, pady=(2, 4))
 
         # Text Fill Color
         lbl_fc = ctk.CTkLabel(parent, text="Text Color:", font=ctk.CTkFont(size=11, weight="bold"), text_color="#f4f4f5")
@@ -1349,6 +1555,136 @@ class MainWindow:
             self.messagebox.showerror("Error Opening Image", str(e))
             self._set_status("Error loading image")
 
+    def _on_open_collage_clicked(self) -> None:
+        """Prompts user to select 2 to 9 images for Collage 2.0 mode."""
+        filetypes = [
+            ("Image Files (*.jpg;*.jpeg;*.png;*.webp;*.bmp)", "*.jpg;*.jpeg;*.png;*.webp;*.bmp"),
+            ("All Files (*.*)", "*.*")
+        ]
+        chosen = self.filedialog.askopenfilenames(
+            parent=self.root,
+            title="Select 2 to 9 Game Covers for Collage",
+            filetypes=filetypes
+        )
+        if not chosen:
+            return
+        if len(chosen) < 2:
+            self.load_image_file(chosen[0])
+            return
+        try:
+            imgs = [Image.open(p).convert("RGB") for p in chosen[:9]]
+            self.model.load_image(imgs[0])
+            tpl = self.combo_template.get() if hasattr(self, "combo_template") else "auto"
+            fit = self.combo_fit.get() if hasattr(self, "combo_fit") else "smart"
+            self.preview_engine.set_collage_images(imgs, template=tpl, fit=fit)
+            self._set_status(f"Loaded {len(imgs)} images for Collage ({tpl})")
+            self._request_preview()
+        except Exception as e:
+            self.messagebox.showerror("Collage Error", str(e))
+
+    def _on_undo_clicked(self) -> None:
+        if self.model.undo():
+            self._set_status("Undo applied (Ctrl+Z)")
+            self._request_preview()
+
+    def _on_redo_clicked(self) -> None:
+        if self.model.redo():
+            self._set_status("Redo applied (Ctrl+Y)")
+            self._request_preview()
+
+    def _on_multi_export_clicked(self) -> None:
+        """Exports the poster across 4:5, 1:1, 9:16, and 16:9 to a selected directory."""
+        if self.model.raw_image is None:
+            self.messagebox.showwarning("No Image", "Please open an image first.")
+            return
+        folder = self.filedialog.askdirectory(parent=self.root, title="Select Folder for Multi-Ratio Export")
+        if not folder:
+            return
+        try:
+            paths = self.model.export_multi_ratios(folder, ratios=["4:5", "1:1", "9:16", "16:9"], format=self.active_format)
+            self._set_status(f"Exported {len(paths)} ratios to {Path(folder).name}")
+            self.messagebox.showinfo("Multi-Ratio Export Complete", f"Saved {len(paths)} posters (4:5, 1:1, 9:16, 16:9) in:\n{folder}")
+        except Exception as e:
+            self.messagebox.showerror("Export Error", str(e))
+
+    def _on_preset_selected(self, preset_name: str) -> None:
+        if self._updating_ui:
+            return
+        if preset_name == "none":
+            self.model.reset_config()
+            self._set_status("Preset cleared")
+        else:
+            self.model.set_preset(preset_name)
+            self._set_status(f"Applied Genre Preset: {preset_name}")
+        self._request_preview()
+
+    def _on_template_selected(self, tpl_name: str) -> None:
+        self.preview_engine.collage_template = tpl_name
+        self._set_status(f"Collage template: {tpl_name}")
+        self._request_preview()
+
+    def _on_fit_selected(self, fit_name: str) -> None:
+        self.preview_engine.collage_fit = fit_name
+        self._set_status(f"Collage fit mode: {fit_name}")
+        self._request_preview()
+
+    def _on_autotrim_toggled(self) -> None:
+        if self._updating_ui:
+            return
+        val = bool(self.chk_autotrim.get()) if self.use_ctk else bool(self.autotrim_var.get())
+        self.model.config.auto_trim = val
+        self._request_preview()
+
+    def _on_popout_toggled(self) -> None:
+        if self._updating_ui:
+            return
+        val = bool(self.chk_popout.get()) if self.use_ctk else bool(self.popout_var.get())
+        self.model.config.pop_out = val
+        self._request_preview()
+
+    def _on_bgmode_selected(self, mode: str) -> None:
+        if self._updating_ui:
+            return
+        self.model.set_bg_mode(mode)
+        self._set_status(f"Backdrop mode: {mode}")
+        self._request_preview()
+
+    def _on_pattern_selected(self, pat: str) -> None:
+        if self._updating_ui:
+            return
+        self.model.config.pattern = None if pat == "none" else pat
+        self._set_status(f"Pattern overlay: {pat}")
+        self._request_preview()
+
+    def _on_fx_toggled(self) -> None:
+        if self._updating_ui:
+            return
+        cfg = self.model.config
+        if hasattr(self, "chk_glow"):
+            cfg.glow = bool(self.chk_glow.get())
+        if hasattr(self, "chk_reflection"):
+            cfg.reflection = bool(self.chk_reflection.get())
+        if hasattr(self, "chk_border"):
+            cfg.border = 3 if bool(self.chk_border.get()) else 0
+        if hasattr(self, "chk_vignette"):
+            on = bool(self.chk_vignette.get())
+            cfg.vignette = 0.35 if on else 0.0
+            cfg.grain = 0.05 if on else 0.0
+        self._request_preview()
+
+    def _on_typography_changed(self, event: Any = None) -> None:
+        if self._updating_ui:
+            return
+        t = self.entry_title.get().strip() if hasattr(self, "entry_title") else ""
+        s = self.entry_subtitle.get().strip() if hasattr(self, "entry_subtitle") else ""
+        b = self.entry_badge.get().strip() if hasattr(self, "entry_badge") else ""
+        p_raw = self.entry_platforms.get().strip() if hasattr(self, "entry_platforms") else ""
+        self.model.config.title = t or None
+        self.model.config.subtitle = s or None
+        self.model.config.badge = b or None
+        self.model.config.platforms = [x.strip() for x in p_raw.split(",") if x.strip()] if p_raw else None
+        self._request_preview()
+
     def _on_reset_clicked(self) -> None:
         """Resets controls to default configuration."""
         self.model.reset_config()
@@ -1364,7 +1700,7 @@ class MainWindow:
         self._set_status(f"Export format: {self.active_format}")
 
     def _on_export_clicked(self) -> None:
-        """Initiates high-quality poster export."""
+        """Initiates high-quality poster or collage export."""
         if self.model.raw_image is None:
             self.messagebox.showwarning("No Image", "Please open an image first before exporting.")
             return
@@ -1375,6 +1711,40 @@ class MainWindow:
             default_format=self.active_format
         )
         if not save_path:
+            return
+
+        if len(self.preview_engine.collage_images) >= 2:
+            try:
+                cfg = self.model.config
+                c1 = cfg.color1 or (self.model.active_palette[0] if self.model.active_palette else DEFAULT_FALLBACK_C1)
+                c2 = cfg.color2 or (self.model.active_palette[1] if self.model.active_palette else DEFAULT_FALLBACK_C2)
+                out_img = render_collage(
+                    images=self.preview_engine.collage_images,
+                    ratio=cfg.ratio,
+                    margin_x=int(cfg.margin) if isinstance(cfg.margin, int) else 42,
+                    margin_top=int(cfg.margin) if isinstance(cfg.margin, int) else 44,
+                    curve=int(cfg.curve),
+                    auto_colors=cfg.auto_colors,
+                    color1=rgb_to_hex(c1) if isinstance(c1, tuple) else c1,
+                    color2=rgb_to_hex(c2) if isinstance(c2, tuple) else c2,
+                    angle=cfg.angle,
+                    watermark=cfg.watermark,
+                    watermark_font=cfg.watermark_font or "bebas_neue",
+                    watermark_color=rgb_to_hex(cfg.watermark_color) if isinstance(cfg.watermark_color, tuple) else str(cfg.watermark_color),
+                    watermark_stroke_color=rgb_to_hex(cfg.watermark_stroke_color) if isinstance(cfg.watermark_stroke_color, tuple) else str(cfg.watermark_stroke_color),
+                    watermark_stroke_width=cfg.watermark_stroke_width,
+                    template=self.preview_engine.collage_template,
+                    fit=self.preview_engine.collage_fit,
+                    title=cfg.title,
+                    subtitle=cfg.subtitle,
+                    badge=cfg.badge,
+                )
+                out_img.save(save_path, quality=95)
+                size_mb = save_path.stat().st_size / (1024 * 1024)
+                self._set_status(f"Saved Collage: {save_path.name} ({size_mb:.2f} MB)")
+                self.messagebox.showinfo("Export Complete", f"Collage saved!\n\nFile: {save_path}\nSize: {size_mb:.2f} MB")
+            except Exception as exc:
+                self.messagebox.showerror("Export Failed", str(exc))
             return
 
         self._set_status(f"Exporting to {save_path.name}...")
@@ -1908,7 +2278,7 @@ class MainWindow:
                 self.slider_angle.set(cfg.angle)
                 self.lbl_angle_val.configure(text=f"Gradient Angle: {int(round(cfg.angle))}°")
 
-            # Shadow
+            # Shadow & FX
             if hasattr(self, "chk_shadow"):
                 if self.use_ctk:
                     if cfg.drop_shadow:
@@ -1917,6 +2287,27 @@ class MainWindow:
                         self.chk_shadow.deselect()
                 elif hasattr(self, "shadow_var"):
                     self.shadow_var.set(cfg.drop_shadow)
+
+            if hasattr(self, "combo_preset"):
+                self.combo_preset.set(cfg.preset or "none")
+            if hasattr(self, "combo_bgmode"):
+                self.combo_bgmode.set(cfg.bg_mode or "gradient")
+            if hasattr(self, "combo_pattern"):
+                self.combo_pattern.set(cfg.pattern or "none")
+
+            if self.use_ctk:
+                if hasattr(self, "chk_glow"):
+                    self.chk_glow.select() if cfg.glow else self.chk_glow.deselect()
+                if hasattr(self, "chk_reflection"):
+                    self.chk_reflection.select() if cfg.reflection else self.chk_reflection.deselect()
+                if hasattr(self, "chk_border"):
+                    self.chk_border.select() if cfg.border > 0 else self.chk_border.deselect()
+                if hasattr(self, "chk_vignette"):
+                    self.chk_vignette.select() if cfg.vignette > 0 else self.chk_vignette.deselect()
+                if hasattr(self, "chk_autotrim"):
+                    self.chk_autotrim.select() if cfg.auto_trim else self.chk_autotrim.deselect()
+                if hasattr(self, "chk_popout"):
+                    self.chk_popout.select() if cfg.pop_out else self.chk_popout.deselect()
 
             # Watermark Text
             if hasattr(self, "entry_watermark"):

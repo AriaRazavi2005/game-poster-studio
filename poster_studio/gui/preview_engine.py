@@ -12,12 +12,13 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 from PIL import Image
 
 from poster_studio.core.processor import PosterConfig, process_poster
+from poster_studio.core.collage import create_game_collage as render_collage
 from poster_studio.core.geometry import resolve_canvas_size
-from poster_studio.core.palette import extract_dominant_colors
+from poster_studio.core.palette import extract_dominant_colors, rgb_to_hex
 
 logger = logging.getLogger("poster_studio.gui.preview")
 
@@ -191,6 +192,9 @@ class PreviewEngine:
         # Cached image assets
         self.raw_image: Optional[Image.Image] = None
         self.preview_raw_image: Optional[Image.Image] = None
+        self.collage_images: List[Image.Image] = []
+        self.collage_template: str = "auto"
+        self.collage_fit: str = "smart"
         self.cached_palette: Optional[Tuple[Tuple[int, int, int], Tuple[int, int, int]]] = None
 
         # Threading & generation control
@@ -216,6 +220,7 @@ class PreviewEngine:
 
     def set_source_image(self, image: Image.Image) -> None:
         """Sets new master raw image and prepares downscaled preview working copy."""
+        self.collage_images = []
         self.raw_image = image.copy().convert("RGB")
 
         # Pre-scale working thumbnail to max 800px dimension
@@ -232,6 +237,21 @@ class PreviewEngine:
 
         # Cache dominant colors once for subsequent fast preview rendering
         self.cached_palette = extract_dominant_colors(self.preview_raw_image)
+
+    def set_collage_images(
+        self,
+        images: List[Image.Image],
+        template: str = "auto",
+        fit: str = "smart"
+    ) -> None:
+        """Sets multiple images for real-time Collage 2.0 preview."""
+        self.collage_images = [im.copy().convert("RGB") for im in images]
+        self.collage_template = template
+        self.collage_fit = fit
+        if self.collage_images:
+            self.raw_image = self.collage_images[0]
+            self.preview_raw_image = self.collage_images[0]
+            self.cached_palette = extract_dominant_colors(self.collage_images[0])
 
     def trigger_preview(self, config: PosterConfig) -> None:
         """Entrypoint called whenever UI sliders or controls change."""
@@ -326,6 +346,30 @@ class PreviewEngine:
             c1 = c1 or extracted_c1
             c2 = c2 or extracted_c2
 
+        if len(self.collage_images) >= 2:
+            full_collage = render_collage(
+                images=self.collage_images,
+                ratio=config.ratio,
+                margin_x=int(config.margin) if isinstance(config.margin, int) else 42,
+                margin_top=int(config.margin) if isinstance(config.margin, int) else 44,
+                curve=int(config.curve),
+                auto_colors=config.auto_colors,
+                color1=rgb_to_hex(c1) if isinstance(c1, tuple) else c1,
+                color2=rgb_to_hex(c2) if isinstance(c2, tuple) else c2,
+                angle=config.angle,
+                watermark=config.watermark,
+                watermark_font=config.watermark_font or "bebas_neue",
+                watermark_color=rgb_to_hex(config.watermark_color) if isinstance(config.watermark_color, tuple) else str(config.watermark_color),
+                watermark_stroke_color=rgb_to_hex(config.watermark_stroke_color) if isinstance(config.watermark_stroke_color, tuple) else str(config.watermark_stroke_color),
+                watermark_stroke_width=config.watermark_stroke_width,
+                template=self.collage_template,
+                fit=self.collage_fit,
+                title=config.title,
+                subtitle=config.subtitle,
+                badge=config.badge,
+            )
+            return full_collage.resize((prev_w, prev_h), Image.Resampling.BILINEAR)
+
         # Scale margin
         if isinstance(config.margin, int):
             scaled_margin = max(0, int(round(config.margin * S)))
@@ -343,36 +387,29 @@ class PreviewEngine:
         scaled_pan_x = config.pan_x * S
         scaled_pan_y = config.pan_y * S
         scaled_stroke_width = max(1, int(round(config.watermark_stroke_width * S))) if config.watermark_stroke_width > 0 else 0
+        scaled_border = max(1, int(round(config.border * S))) if config.border > 0 else 0
 
-        preview_config = PosterConfig(
-            ratio=config.ratio,
-            hd=False,
-            custom_canvas_size=(prev_w, prev_h),
-            margin=scaled_margin,
-            curve=scaled_curve,
-            zoom=config.zoom,
-            pan_x=scaled_pan_x,
-            pan_y=scaled_pan_y,
-            auto_colors=False,
-            color1=c1,
-            color2=c2,
-            swap_colors=config.swap_colors,
-            angle=config.angle,
-            drop_shadow=config.drop_shadow,
-            shadow_offset_y=scaled_offset_y,
-            shadow_blur=scaled_blur,
-            shadow_opacity=config.shadow_opacity,
-            watermark=config.watermark,
-            watermark_size=scaled_watermark_size,
-            watermark_font=config.watermark_font,
-            watermark_x=config.watermark_x,
-            watermark_y=config.watermark_y,
-            watermark_color=config.watermark_color,
-            watermark_stroke_color=config.watermark_stroke_color,
-            watermark_stroke_width=scaled_stroke_width,
-            supersample_factor=1,  # Fast 1x supersampling for real-time 60fps preview
-            quality=85
-        )
+        cfg_dict = config.to_dict()
+        cfg_dict.update({
+            "ratio": config.ratio,
+            "hd": False,
+            "custom_canvas_size": (prev_w, prev_h),
+            "margin": scaled_margin,
+            "curve": scaled_curve,
+            "pan_x": scaled_pan_x,
+            "pan_y": scaled_pan_y,
+            "auto_colors": False,
+            "color1": c1,
+            "color2": c2,
+            "shadow_offset_y": scaled_offset_y,
+            "shadow_blur": scaled_blur,
+            "watermark_size": scaled_watermark_size,
+            "watermark_stroke_width": scaled_stroke_width,
+            "border": scaled_border,
+            "supersample_factor": 1,
+            "quality": 85,
+        })
+        preview_config = PosterConfig.from_dict(cfg_dict)
 
         return process_poster(
             input_image=self.preview_raw_image,
