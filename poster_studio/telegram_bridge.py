@@ -293,10 +293,18 @@ def create_game_collage(
     watermark_stroke_color: str = "#0B131F",
     watermark_stroke_width: int = 4,
     pans_y: Optional[List[int]] = None,
-    quality: int = 95
+    pans_x: Optional[List[int]] = None,
+    zooms: Optional[List[float]] = None,
+    template: Optional[str] = None,
+    fit: str = "cover",
+    title: Optional[str] = None,
+    subtitle: Optional[str] = None,
+    badge: Optional[str] = None,
+    quality: int = 95,
 ) -> Union[Path, Image.Image]:
     """
     Headless multi-image gaming collage generator for @BazyePc publishing.
+    Supports 22 built-in templates and 'cover'/'contain'/'smart' fit modes.
     """
     from poster_studio.core.collage import create_game_collage as _core_collage
 
@@ -327,7 +335,14 @@ def create_game_collage(
         watermark_color=watermark_color,
         watermark_stroke_color=watermark_stroke_color,
         watermark_stroke_width=watermark_stroke_width,
-        pans_y=pans_y
+        pans_y=pans_y,
+        pans_x=pans_x,
+        zooms=zooms,
+        template=template,
+        fit=fit,
+        title=title,
+        subtitle=subtitle,
+        badge=badge,
     )
 
     if output_image is not None:

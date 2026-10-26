@@ -1,0 +1,28 @@
+services:
+  bot-lite:
+    build:
+      context: .
+      target: lite
+    command: python -m poster_studio.bot
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN:-}
+      - ADMIN_IDS=${ADMIN_IDS:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  api-lite:
+    build:
+      context: .
+      target: lite
+    command: uvicorn poster_studio.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped

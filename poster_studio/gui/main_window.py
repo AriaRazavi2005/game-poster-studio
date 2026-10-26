@@ -20,7 +20,10 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from PIL import Image
 
+from dataclasses import asdict
+import json
 from poster_studio.core.processor import PosterConfig
+from poster_studio.core.presets import PRESETS, get_preset, auto_select_preset
 from poster_studio.core.geometry import ASPECT_RATIOS, resolve_canvas_size
 from poster_studio.core.palette import (
     DEFAULT_FALLBACK_C1,
@@ -69,6 +72,8 @@ class PosterStudioModel:
         self.rendered_preview: Optional[Image.Image] = None
 
         self._observers: List[Callable[[], None]] = []
+        self._history: List[Dict[str, Any]] = []
+        self._redo_stack: List[Dict[str, Any]] = []
 
         # Headless-safe Preview and Export engines
         self.preview_engine = PreviewEngine()
@@ -76,6 +81,33 @@ class PosterStudioModel:
 
         if initial_image is not None:
             self.load_image(initial_image)
+
+    def _push_history(self) -> None:
+        """Saves current config state to the undo stack (up to 20 steps)."""
+        self._history.append(asdict(self.config))
+        if len(self._history) > 20:
+            self._history.pop(0)
+        self._redo_stack.clear()
+
+    def undo(self) -> bool:
+        """Restores the previous PosterConfig state."""
+        if not self._history:
+            return False
+        self._redo_stack.append(asdict(self.config))
+        prev = self._history.pop()
+        self.config = PosterConfig(**prev)
+        self.notify()
+        return True
+
+    def redo(self) -> bool:
+        """Re-applies an undone PosterConfig state."""
+        if not self._redo_stack:
+            return False
+        self._history.append(asdict(self.config))
+        nxt = self._redo_stack.pop()
+        self.config = PosterConfig(**nxt)
+        self.notify()
+        return True
 
     def subscribe(self, observer: Callable[[], None]) -> None:
         """Subscribes an observer callback to model state mutations."""
@@ -135,6 +167,7 @@ class PosterStudioModel:
 
     def reset_config(self) -> None:
         """Restores default configuration parameters."""
+        self._push_history()
         saved_c1 = self.active_palette[0] if self.active_palette else None
         saved_c2 = self.active_palette[1] if self.active_palette else None
 
@@ -155,23 +188,119 @@ class PosterStudioModel:
         )
         self.notify()
 
+    def set_preset(self, preset_name: Optional[str]) -> None:
+        """Applies a genre preset by name (or 'auto' to auto-select from image)."""
+        self._push_history()
+        if preset_name == "auto" and self.raw_image is not None:
+            preset_name = auto_select_preset(self.raw_image)
+        self.config.preset = preset_name
+        p = get_preset(preset_name)
+        for k, v in p.items():
+            if hasattr(self.config, k):
+                setattr(self.config, k, v)
+        self.config.normalize()
+        self.notify()
+
+    def set_bg_mode(self, bg_mode: str) -> None:
+        """Sets backdrop mode ('gradient', 'blur', 'radial', 'mesh')."""
+        self._push_history()
+        self.config.bg_mode = bg_mode
+        self.config.normalize()
+        self.notify()
+
+    def set_typography(
+        self,
+        title: Optional[str] = None,
+        subtitle: Optional[str] = None,
+        badge: Optional[str] = None
+    ) -> None:
+        """Sets multi-layer typography fields."""
+        self._push_history()
+        if title is not None:
+            self.config.title = title.strip() or None
+        if subtitle is not None:
+            self.config.subtitle = subtitle.strip() or None
+        if badge is not None:
+            self.config.badge = badge.strip() or None
+        self.notify()
+
+    def save_project(self, path: Union[str, Path]) -> Path:
+        """Saves current project configuration and source path to a .gps.json file."""
+        out = Path(path)
+        payload = {
+            "version": "2.0.0",
+            "source_path": str(self.source_path) if self.source_path else None,
+            "config": asdict(self.config),
+        }
+        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        return out
+
+    def load_project(self, path: Union[str, Path]) -> None:
+        """Loads project configuration (and source image if present) from a .gps.json file."""
+        self._push_history()
+        p = Path(path)
+        payload = json.loads(p.read_text(encoding="utf-8"))
+        src = payload.get("source_path")
+        if src and Path(src).is_file():
+            self.load_image(src)
+        cfg_data = payload.get("config", {})
+        self.config = PosterConfig(**cfg_data)
+        self.notify()
+
+    def export_multi_ratios(
+        self,
+        output_dir: Union[str, Path],
+        ratios: Optional[List[str]] = None,
+        format: str = "JPEG",
+        quality: int = 95
+    ) -> List[Path]:
+        """Exports the current poster across multiple aspect ratios in one call."""
+        if self.raw_image is None:
+            raise ValueError("No source image loaded to export.")
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        target_ratios = ratios or ["4:5", "1:1", "9:16", "16:9"]
+        ext = ".png" if format.upper() == "PNG" else ".jpg"
+        saved_paths: List[Path] = []
+        orig_ratio = self.config.ratio
+        try:
+            for r in target_ratios:
+                self.config.ratio = r
+                tag = r.replace(":", "x")
+                target_file = out_dir / f"poster_{tag}{ext}"
+                p, _ = self.export_engine.export_sync(
+                    raw_image=self.raw_image,
+                    config=self.config,
+                    output_path=target_file,
+                    format=format,
+                    quality=quality,
+                )
+                saved_paths.append(p)
+        finally:
+            self.config.ratio = orig_ratio
+        return saved_paths
+
     def set_spacing(self, val: Union[int, float]) -> None:
         """Sets margin / spacing (0-150px)."""
+        self._push_history()
         self.config.margin = max(0, int(round(val)))
         self.notify()
 
     def set_curve(self, val: Union[int, float]) -> None:
         """Sets corner radius / curve (0-120px)."""
+        self._push_history()
         self.config.curve = max(0, int(round(val)))
         self.notify()
 
     def set_zoom(self, val: float) -> None:
         """Sets poster zoom (0.5x - 2.0x)."""
+        self._push_history()
         self.config.zoom = max(0.1, min(3.0, round(float(val), 3)))
         self.notify()
 
     def set_ratio(self, ratio: str, hd: Optional[bool] = None) -> None:
         """Sets aspect ratio preset."""
+        self._push_history()
         if ratio in ASPECT_RATIOS:
             self.config.ratio = ratio
         if hd is not None:
@@ -414,8 +543,10 @@ class MainWindow:
         # Wire model listener
         self.model.subscribe(self._on_model_changed)
 
-        # Bind window resize on canvas
+        # Bind window resize on canvas and Undo/Redo shortcuts
         self.canvas_preview.bind("<Configure>", self._on_canvas_resize)
+        self.root.bind("<Control-z>", lambda e: self.model.undo())
+        self.root.bind("<Control-y>", lambda e: self.model.redo())
 
         # Synchronize initial state
         self._sync_widgets_from_model()

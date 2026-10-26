@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "game-poster-studio-pro"
+version = "2.0.0.dev0"
+description = "Pro AI Plugin for Game Poster Studio (3D Character Pop-out, CPU-Safe ONNX Upscaling, and Gemini Vision Automation)."
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "game-poster-studio>=2.0.0.dev0",
+    "onnxruntime>=1.16.0",
+    "rembg>=2.0.50",
+]
+
+[project.entry-points."poster_studio.plugins"]
+pro = "poster_studio_pro"
