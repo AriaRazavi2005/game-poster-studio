@@ -10,6 +10,7 @@ venv/
 .venv/
 env/
 ENV/
+*.egg-info/
 
 # Graphify & internal agent scratchpads
 graphify-out/

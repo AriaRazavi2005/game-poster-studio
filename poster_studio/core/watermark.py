@@ -14,6 +14,9 @@ import re
 from typing import Any, Dict, Optional, Tuple, Union
 from PIL import Image, ImageDraw, ImageFont
 
+from poster_studio.core.palette import parse_hex_color
+from poster_studio.core.types import Box
+
 # Curated gaming & display font catalog (human-friendly names mapped to font files)
 AVAILABLE_FONTS: Dict[str, str] = {
     # Core Gaming & Action Fonts
@@ -157,8 +160,9 @@ def calculate_watermark_position(
     position: str = "bottom_center",
     margin_bottom: int = 35,
     margin_side: int = 40,
-    card_placement: Optional[Tuple[int, int, int, int]] = None,
-    custom_pos: Optional[Tuple[float, float]] = None
+    card_placement: Optional[Union[Box, Tuple[int, int, int, int]]] = None,
+    custom_pos: Optional[Tuple[float, float]] = None,
+    pos_mode: Optional[str] = None
 ) -> Tuple[int, int]:
     """
     Calculates (x, y) coordinates for the watermark.
@@ -170,8 +174,9 @@ def calculate_watermark_position(
                   'top_left', 'top_right', 'center', 'card_bottom_left'.
         margin_bottom: Distance in px from bottom canvas edge.
         margin_side: Distance in px from side canvas edge.
-        card_placement: Optional (card_x, card_y, card_w, card_h) bounding box.
+        card_placement: Optional Box instance or (left, top, right, bottom) / (x, y, w, h) bounding box.
         custom_pos: Optional (x, y) coordinate, either normalized [0.0, 1.0] or absolute pixels.
+        pos_mode: Coordinate interpretation for custom_pos: 'relative', 'absolute', or 'auto' (default).
 
     Returns:
         (x, y) pixel coordinates.
@@ -179,10 +184,20 @@ def calculate_watermark_position(
     cw, ch = canvas_size
     tw, th = text_size
 
-    # Direct custom position (e.g. from mouse drag)
+    # Direct custom position (e.g. from mouse drag or config)
     if custom_pos is not None:
         cx_val, cy_val = custom_pos
-        if 0.0 <= cx_val <= 1.0 and 0.0 <= cy_val <= 1.0:
+        mode = (pos_mode or "auto").lower()
+
+        is_relative = False
+        if mode == "relative":
+            is_relative = True
+        elif mode == "absolute":
+            is_relative = False
+        else:  # 'auto' backward-compatible heuristic
+            is_relative = (0.0 <= cx_val <= 1.0 and 0.0 <= cy_val <= 1.0)
+
+        if is_relative:
             x = round(cw * cx_val - tw / 2.0)
             y = round(ch * cy_val - th / 2.0)
         else:
@@ -193,14 +208,17 @@ def calculate_watermark_position(
     # Normalize card_placement if provided
     has_card = card_placement is not None
     card_l, card_t, card_r, card_b = 0, 0, cw, ch
-    if has_card:
-        p0, p1, p2, p3 = card_placement  # type: ignore[misc]
-        if p2 > p0 and p3 > p1 and p3 <= ch + 20:
-            # Format is (left, top, right, bottom)
-            card_l, card_t, card_r, card_b = p0, p1, p2, p3
+    if has_card and card_placement is not None:
+        if isinstance(card_placement, Box):
+            card_l, card_t, card_r, card_b = card_placement.left, card_placement.top, card_placement.right, card_placement.bottom
         else:
-            # Format is (x, y, width, height)
-            card_l, card_t, card_r, card_b = p0, p1, p0 + p2, p1 + p3
+            p0, p1, p2, p3 = card_placement
+            if p2 > p0 and p3 > p1 and p3 <= ch + 20:
+                # Format is (left, top, right, bottom)
+                card_l, card_t, card_r, card_b = p0, p1, p2, p3
+            else:
+                # Format is (x, y, width, height)
+                card_l, card_t, card_r, card_b = p0, p1, p0 + p2, p1 + p3
 
     pos_clean = position.strip().lower()
 
@@ -263,8 +281,9 @@ def apply_watermark(
     position: str = "bottom_center",
     margin_bottom: int = 35,
     margin_side: int = 40,
-    card_placement: Optional[Tuple[int, int, int, int]] = None,
+    card_placement: Optional[Union[Box, Tuple[int, int, int, int]]] = None,
     custom_position: Optional[Tuple[float, float]] = None,
+    pos_mode: Optional[str] = None,
     *,
     image: Optional[Image.Image] = None,
     placement: Any = None,
@@ -331,7 +350,8 @@ def apply_watermark(
         margin_bottom=margin_bottom,
         margin_side=margin_side,
         card_placement=box,
-        custom_pos=custom_position
+        custom_pos=custom_position,
+        pos_mode=pos_mode
     )
 
     # Pass 1: Drop Shadow

@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Union
 
+from poster_studio.core.types import Box, Point, Size
+
 # Standard aspect ratio resolutions (Width, Height)
 ASPECT_RATIOS: Dict[str, Tuple[int, int]] = {
     "4:5": (1080, 1350),
@@ -44,9 +46,9 @@ class PosterPlacement:
     box_height: int
 
     @property
-    def box(self) -> Tuple[int, int, int, int]:
-        """Returns bounding box (left, top, right, bottom)."""
-        return (self.x, self.y, self.x + self.width, self.y + self.height)
+    def box(self) -> Box:
+        """Returns bounding box as a Box instance (also unpackable as (left, top, right, bottom))."""
+        return Box.from_ltrb(self.x, self.y, self.x + self.width, self.y + self.height)
 
     @property
     def position(self) -> Tuple[int, int]:

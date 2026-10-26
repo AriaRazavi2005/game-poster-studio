@@ -29,11 +29,17 @@ from poster_studio.core.processor import (
     PosterProcessor,
     process_poster,
 )
+from poster_studio.telegram_bridge import (
+    create_game_poster,
+    create_game_collage,
+)
 
-__version__ = "1.0.0"
+__version__ = "2.0.0.dev0"
 __all__ = [
     "PosterConfig",
     "PosterProcessor",
     "process_poster",
+    "create_game_poster",
+    "create_game_collage",
     "__version__",
 ]

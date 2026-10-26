@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
-from PIL import Image
+from PIL import Image, ImageOps
 
 from poster_studio.core.palette import (
     DEFAULT_FALLBACK_C1,
@@ -66,6 +66,7 @@ class PosterConfig:
     color2: Optional[ColorType] = None
     swap_colors: bool = False
     angle: float = 135.0
+    dither: bool = True
 
     # 3D Drop Shadow
     drop_shadow: bool = True
@@ -79,6 +80,7 @@ class PosterConfig:
     watermark_font: Optional[str] = None
     watermark_x: Optional[float] = None
     watermark_y: Optional[float] = None
+    watermark_pos_mode: Optional[str] = "auto"
     watermark_color: ColorType = (255, 255, 255)
     watermark_stroke_color: ColorType = (15, 23, 42)
     watermark_stroke_width: int = 3
@@ -168,6 +170,7 @@ class PosterConfig:
             "color2": self.color2,
             "swap_colors": self.swap_colors,
             "angle": self.angle,
+            "dither": self.dither,
             "drop_shadow": self.drop_shadow,
             "shadow_offset_y": self.shadow_offset_y,
             "shadow_blur": self.shadow_blur,
@@ -177,6 +180,7 @@ class PosterConfig:
             "watermark_font": self.watermark_font,
             "watermark_x": self.watermark_x,
             "watermark_y": self.watermark_y,
+            "watermark_pos_mode": self.watermark_pos_mode,
             "watermark_color": self.watermark_color,
             "watermark_stroke_color": self.watermark_stroke_color,
             "watermark_stroke_width": self.watermark_stroke_width,
@@ -253,7 +257,8 @@ class PosterProcessor:
             height=canvas_h,
             color1=c1,
             color2=c2,
-            angle=active_config.angle
+            angle=active_config.angle,
+            dither=active_config.dither
         )
 
         # Stage 3: Containment scaling & placement (with pan offset)
@@ -314,7 +319,8 @@ class PosterProcessor:
                 text_color=active_config.watermark_color,
                 stroke_color=active_config.watermark_stroke_color,
                 card_placement=placement.box,
-                custom_position=custom_wm_pos
+                custom_position=custom_wm_pos,
+                pos_mode=active_config.watermark_pos_mode
             )
 
         # Stage 8: Save if requested
@@ -324,10 +330,23 @@ class PosterProcessor:
         return canvas
 
     @staticmethod
-    def _load_image(image_input: Union[str, Path, Image.Image]) -> Image.Image:
-        """Loads and normalizes input image to RGB format."""
+    def _load_image(image_input: Union[str, Path, Image.Image, bytes, bytearray, Any]) -> Image.Image:
+        """Loads, rotates according to EXIF, and normalizes input image to RGB format."""
+        import io
         if isinstance(image_input, Image.Image):
             img = image_input
+        elif isinstance(image_input, (bytes, bytearray)):
+            try:
+                img = Image.open(io.BytesIO(image_input))
+                img.load()
+            except Exception as e:
+                raise PosterProcessingError(f"Could not decode image from bytes: {e}") from e
+        elif hasattr(image_input, "read") and hasattr(image_input, "seek"):
+            try:
+                img = Image.open(image_input)
+                img.load()
+            except Exception as e:
+                raise PosterProcessingError(f"Could not decode image from stream: {e}") from e
         elif isinstance(image_input, (str, Path)):
             path = Path(image_input)
             if not path.is_file():
@@ -339,6 +358,14 @@ class PosterProcessor:
                 raise PosterProcessingError(f"Could not open or decode image at '{path}': {e}") from e
         else:
             raise TypeError(f"Unsupported image input type: {type(image_input)}")
+
+        # Respect EXIF orientation tag (e.g. mobile photos taken rotated)
+        try:
+            transposed = ImageOps.exif_transpose(img)
+            if transposed is not None:
+                img = transposed
+        except Exception:
+            pass
 
         # Mode normalization to RGB
         if img.mode == "RGBA":

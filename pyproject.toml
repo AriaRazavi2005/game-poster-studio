@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "game-poster-studio"
+version = "2.0.0.dev0"
+description = "High-performance, automated game poster framing & styling framework for Telegram channel publishing pipelines (@BazyePc) and Windows Desktop."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Aria Razavi", email = "aria@bazyepc.com" }
+]
+keywords = ["gaming", "poster", "telegram", "collage", "image-processing", "pillow", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+]
+
+dependencies = [
+    "Pillow>=10.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+gui = [
+    "customtkinter>=5.2.0",
+]
+bot = [
+    "aiogram>=3.4.0",
+]
+api = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+]
+persian = [
+    "arabic-reshaper>=3.0.0",
+    "python-bidi>=0.4.2",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-benchmark>=4.0.0",
+]
+all = [
+    "customtkinter>=5.2.0",
+    "aiogram>=3.4.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "arabic-reshaper>=3.0.0",
+    "python-bidi>=0.4.2",
+    "pytest>=7.4.0",
+]
+
+[project.scripts]
+poster-studio = "poster_studio.cli:main"
+game-poster-studio = "poster_studio.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["poster_studio*"]
+
+[tool.setuptools.package-data]
+poster_studio = [
+    "assets/fonts/*.ttf",
+    "assets/fonts/*.txt",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["poster_studio/tests", "tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-q"

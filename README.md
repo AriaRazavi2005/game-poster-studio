@@ -42,8 +42,8 @@ Or manually:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-python3 cli.py --input examples/raw_cover.jpg --output examples/framed_poster_4x5.jpg --ratio 4:5
+pip install -e .
+poster-studio --input examples/raw_cover.jpg --output examples/framed_poster_4x5.jpg --ratio 4:5
 ```
 
 ---
@@ -51,8 +51,9 @@ python3 cli.py --input examples/raw_cover.jpg --output examples/framed_poster_4x
 ## 🛠️ Key Capabilities
 
 - **🎨 Smart Palette AI**: Color quantization & clustering in RGB/HSV that strips away dull neutral grays, pure blacks, and whites, extracting high-contrast dominant color pairs.
-- **🌈 Dynamic 2-Color Linear Gradient**: Vectorized NumPy linear gradient generator at arbitrary rotation angles (0–360°) with instant color inversion.
+- **🌈 Dynamic 2-Color Linear Gradient**: Vectorized NumPy linear gradient generator at arbitrary rotation angles (0–360°) with instant color inversion and **deterministic Bayer ordered dithering** to eliminate 8-bit banding on dark gradients.
 - **📐 Social & Telegram Ratios**: Native presets for `4:5` (Telegram post default: 1080×1350), `1:1` (Square: 1080×1080), `9:16` (Stories / Reels: 1080×1920), `16:9`, `4:3`, and `21:9`.
+- **📱 EXIF Auto-Orientation**: Seamlessly transposes mobile captures and rotated raw photos based on standard EXIF tags.
 - **✂️ Supersampled Anti-Aliased Corners**: Smooth rounded corners (0–120px radius) with Lanczos filtering eliminating all jagged staircasing.
 - **🌑 3D Gaussian Drop Shadow**: Realistic elevation shadow layer for card depth effect.
 - **🔤 Anti-Collision Typography Layer**:

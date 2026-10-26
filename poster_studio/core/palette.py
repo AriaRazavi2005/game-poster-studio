@@ -168,7 +168,7 @@ def extract_dominant_colors(
             "transparency" in image.info and image.mode == "P"
         ):
             rgba = image.convert("RGBA")
-            bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+            bg = Image.new("RGBA", rgba.size, (0, 0, 0, 255))
             norm_image = Image.alpha_composite(bg, rgba).convert("RGB")
         else:
             norm_image = image.convert("RGB")

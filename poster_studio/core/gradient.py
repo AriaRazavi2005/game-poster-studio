@@ -17,6 +17,28 @@ from poster_studio.core.palette import parse_hex_color
 
 ColorType = Union[Tuple[int, int, int], str]
 
+# Precomputed 4x4 Bayer matrix normalized to [-0.5, 0.5] for fast, deterministic ordered dithering
+_BAYER_4X4 = (
+    np.array(
+        [
+            [0, 8, 2, 10],
+            [12, 4, 14, 6],
+            [3, 11, 1, 9],
+            [15, 7, 13, 5],
+        ],
+        dtype=np.float32,
+    )
+    / 16.0
+    - 0.5
+)
+
+
+def _get_bayer_dither(h: int, w: int) -> np.ndarray:
+    """Returns a deterministic 4x4 Bayer dither pattern matching canvas dimensions."""
+    tile_y = (h + 3) // 4
+    tile_x = (w + 3) // 4
+    return np.tile(_BAYER_4X4, (tile_y, tile_x))[:h, :w]
+
 
 def _normalize_color(color: Any) -> Tuple[int, int, int]:
     """Validates and converts a color input (tuple or hex string) to an (R, G, B) tuple."""
@@ -36,6 +58,7 @@ def generate_linear_gradient(
     color2_or_angle: Union[ColorType, float, None] = None,
     angle: float = 135.0,
     convention: str = "cartesian",
+    dither: bool = True,
     *,
     width: Optional[int] = None,
     height: Optional[int] = None,
@@ -167,7 +190,14 @@ def generate_linear_gradient(
     np.clip(T, 0.0, 1.0, out=T)
 
     # 7. Fast LUT vector mapping into pre-allocated uint8 buffer (< 15 ms)
-    T_byte = (T * 255.0).astype(np.uint8)
+    if dither:
+        # High quality, deterministic ordered Bayer dithering eliminates 8-bit banding
+        T_scaled = T * 255.0 + _get_bayer_dither(h, w)
+        np.clip(T_scaled, 0.0, 255.0, out=T_scaled)
+        T_byte = T_scaled.astype(np.uint8)
+    else:
+        T_byte = (T * 255.0).astype(np.uint8)
+
     lut = np.empty((256, 3), dtype=np.uint8)
     for c in range(3):
         lut[:, c] = np.round(np.linspace(c1[c], c2[c], 256)).astype(np.uint8)

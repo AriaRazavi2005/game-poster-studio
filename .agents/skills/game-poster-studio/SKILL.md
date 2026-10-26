@@ -16,9 +16,10 @@ The framework runs in two modes:
 ## 🚀 Quick Reference for AI Agents
 
 Whenever a user or autonomous agent needs to generate or format a game poster:
-- **In Python scripts / Telegram bots**: Import and call `create_game_poster()` from `telegram_bridge.py`.
-- **From Terminal / Bash / PowerShell**: Run `python cli.py --input <path> --output <path> [options]`.
-- **For Batch conversion**: Run `python cli.py --batch-dir <input_dir> --output <output_dir>`.
+- **In Python scripts / Telegram bots**: Import and call `create_game_poster()` or `create_game_collage()` from `poster_studio.telegram_bridge` (or root `telegram_bridge.py`).
+- **From Terminal / Bash / PowerShell**: Run `poster-studio --input <path> --output <path> [options]` (or `python cli.py ...`).
+- **For Batch conversion**: Run `poster-studio --batch-dir <input_dir> --output <output_dir>`.
+- **For Multi-Image Collages**: Run `poster-studio --collage img1.jpg img2.jpg ... --output collage.jpg`.
 - **On Windows Desktop**: Launch `run_gui.bat` or `python gui.py`.
 
 ---

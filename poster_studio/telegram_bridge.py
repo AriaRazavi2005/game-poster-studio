@@ -12,7 +12,7 @@ import io
 import logging
 from pathlib import Path
 import sys
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from PIL import Image
 
@@ -23,21 +23,12 @@ for p in [str(REPO_ROOT), str(POSTER_STUDIO_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-# Robust import: works from root or when installed as package
-try:
-    from poster_studio.core.processor import (
-        PosterConfig,
-        PosterProcessor,
-        PosterProcessingError,
-        process_poster,
-    )
-except ImportError:
-    from core.processor import (
-        PosterConfig,
-        PosterProcessor,
-        PosterProcessingError,
-        process_poster,
-    )
+from poster_studio.core.processor import (
+    PosterConfig,
+    PosterProcessor,
+    PosterProcessingError,
+    process_poster,
+)
 
 logger = logging.getLogger("poster_studio.telegram_bridge")
 
@@ -83,8 +74,19 @@ def create_game_poster(
     angle: float = 135.0,
     no_shadow: bool = False,
     watermark: Optional[str] = "BAZYEPC",
+    watermark_font: str = "Anton",
+    watermark_size: Optional[int] = None,
+    watermark_color: str = "#ffffff",
+    watermark_stroke_color: str = "#0f172a",
+    watermark_stroke_width: int = 3,
+    watermark_x: Optional[float] = None,
+    watermark_y: Optional[float] = None,
+    watermark_pos_mode: Optional[str] = "auto",
     zoom: float = 1.0,
+    pan_x: float = 0.0,
+    pan_y: float = 0.0,
     quality: int = 95,
+    dither: bool = True,
     **kwargs: Any
 ) -> Union[Path, Image.Image]:
     """
@@ -108,8 +110,19 @@ def create_game_poster(
         angle: Linear gradient rotation angle in degrees (default: 135.0).
         no_shadow: Disable 3D Gaussian drop shadow if True (default: False).
         watermark: Watermark text (default: 'BAZYEPC'). None or '' disables watermark.
+        watermark_font: Gaming font family or TTF path (default: 'Anton').
+        watermark_size: Optional font size in px.
+        watermark_color: Watermark text fill color (default: '#ffffff').
+        watermark_stroke_color: Watermark stroke outline color (default: '#0f172a').
+        watermark_stroke_width: Watermark stroke width in px (default: 3).
+        watermark_x: Optional normalized [0.0, 1.0] or pixel horizontal center position.
+        watermark_y: Optional normalized [0.0, 1.0] or pixel vertical center position.
+        watermark_pos_mode: Coordinate interpretation for watermark ('auto', 'relative', 'absolute').
         zoom: Fit zoom multiplier (default: 1.0).
+        pan_x: Horizontal poster pan offset in canvas pixels (default: 0.0).
+        pan_y: Vertical poster pan offset in canvas pixels (default: 0.0).
         quality: JPEG export quality 1-100 (default: 95).
+        dither: Apply spatial gradient dithering to eliminate banding (default: True).
         **kwargs: Parameter aliases and advanced styling options.
 
     Returns:
@@ -174,9 +187,20 @@ def create_game_poster(
                 "color2": color2,
                 "swap_colors": swap_colors,
                 "angle": angle,
+                "dither": dither,
                 "drop_shadow": drop_shadow,
                 "watermark": watermark,
+                "watermark_font": watermark_font,
+                "watermark_size": watermark_size,
+                "watermark_color": watermark_color,
+                "watermark_stroke_color": watermark_stroke_color,
+                "watermark_stroke_width": watermark_stroke_width,
+                "watermark_x": watermark_x,
+                "watermark_y": watermark_y,
+                "watermark_pos_mode": watermark_pos_mode,
                 "zoom": zoom,
+                "pan_x": pan_x,
+                "pan_y": pan_y,
                 "quality": quality,
             },
             **kwargs
@@ -253,8 +277,73 @@ def poster_to_bytesio(
     return bio
 
 
+def create_game_collage(
+    input_images: List[Union[str, Path, Image.Image, bytes, bytearray, io.BytesIO]],
+    output_image: Optional[Union[str, Path]] = None,
+    ratio: str = "4:5",
+    gap: int = 18,
+    curve: int = 28,
+    auto_colors: bool = True,
+    color1: Optional[str] = None,
+    color2: Optional[str] = None,
+    angle: float = 135.0,
+    watermark: Optional[str] = "BAZYEPC",
+    watermark_font: str = "bebas_neue",
+    watermark_color: str = "#F5BA42",
+    watermark_stroke_color: str = "#0B131F",
+    watermark_stroke_width: int = 4,
+    pans_y: Optional[List[int]] = None,
+    quality: int = 95
+) -> Union[Path, Image.Image]:
+    """
+    Headless multi-image gaming collage generator for @BazyePc publishing.
+    """
+    from poster_studio.core.collage import create_game_collage as _core_collage
+
+    pil_images: List[Image.Image] = []
+    for item in input_images:
+        if isinstance(item, (bytes, bytearray)):
+            pil_images.append(Image.open(io.BytesIO(item)).convert("RGB"))
+        elif isinstance(item, io.BytesIO):
+            pil_images.append(Image.open(item).convert("RGB"))
+        elif isinstance(item, Image.Image):
+            pil_images.append(item.convert("RGB"))
+        elif isinstance(item, (str, Path)):
+            pil_images.append(Image.open(Path(item)).convert("RGB"))
+        else:
+            raise TypeError(f"Unsupported image type: {type(item)}")
+
+    res = _core_collage(
+        images=pil_images,
+        ratio=ratio,
+        gap=gap,
+        curve=curve,
+        auto_colors=auto_colors,
+        color1=color1,
+        color2=color2,
+        angle=angle,
+        watermark=watermark,
+        watermark_font=watermark_font,
+        watermark_color=watermark_color,
+        watermark_stroke_color=watermark_stroke_color,
+        watermark_stroke_width=watermark_stroke_width,
+        pans_y=pans_y
+    )
+
+    if output_image is not None:
+        dest_path = Path(output_image)
+        if not dest_path.suffix:
+            dest_path = dest_path.with_suffix(".jpg")
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        res.save(dest_path, format="JPEG", quality=quality, subsampling=0)
+        return dest_path
+
+    return res
+
+
 __all__ = [
     "create_game_poster",
+    "create_game_collage",
     "poster_to_bytes",
     "poster_to_bytesio",
     "TelegramBridgeError",
